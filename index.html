@@ -2,13 +2,124 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>大肥鱼 AI</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>大肥鱼 AI 聊天室</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #eaf6ff;
+}
+header {
+  background: #49a9ed;
+  color: white;
+  padding: 18px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: bold;
+}
+#chat {
+  height: calc(100dvh - 145px);
+  overflow-y: auto;
+  padding: 16px;
+}
+.msg {
+  padding: 12px 15px;
+  margin: 12px 0;
+  border-radius: 16px;
+  max-width: 80%;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.fish {
+  background: white;
+  margin-right: auto;
+}
+.me {
+  background: #a6e8b5;
+  margin-left: auto;
+}
+footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: white;
+}
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 16px;
+}
+button {
+  border: none;
+  border-radius: 20px;
+  padding: 0 18px;
+  background: #49a9ed;
+  color: white;
+  font-size: 16px;
+}
+</style>
 </head>
 <body>
-  <h1>🐳 大肥鱼 AI</h1>
-  <p>你好呀！我是大肥鱼！</p>
-  <p>欢迎来到我的聊天小屋！</p>
+
+<header>🐳 大肥鱼 AI</header>
+
+<div id="chat">
+  <div class="msg fish">
+    🐳 你好呀！我是大肥鱼！
+    今天想聊些什么？
+  </div>
+</div>
+
+<footer>
+  <input id="input" placeholder="和大肥鱼说点什么...">
+  <button onclick="send()">发送</button>
+</footer>
+
+<script>
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+
+function addMessage(text, type) {
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function send() {
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMessage(text, "me");
+  input.value = "";
+
+  setTimeout(() => {
+    let reply = "🐳 大肥鱼收到啦！等我接入AI大脑，就能认真回答你啦！";
+
+    if (text.includes("你好")) {
+      reply = "🐳 你好呀！我是大肥鱼，很高兴认识你！";
+    } else if (text.includes("名字")) {
+      reply = "🐳 我叫大肥鱼，一条爱吃白米饭的鱼！";
+    } else if (text.includes("吃")) {
+      reply = "🍚 说到吃的，大肥鱼最喜欢白米饭啦！";
+    }
+
+    addMessage(reply, "fish");
+  }, 500);
+}
+
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter") send();
+});
+</script>
+
 </body>
 </html>
