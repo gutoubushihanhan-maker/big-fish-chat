@@ -161,6 +161,7 @@ function saveHistory(){
   }
 }
 
+
 function addMessage(text,type,save=true,time=Date.now()){
   const wrap=document.createElement("div");
   wrap.className="message "+type;
@@ -183,17 +184,51 @@ function addMessage(text,type,save=true,time=Date.now()){
     "zh-CN",{hour:"2-digit",minute:"2-digit"}
   );
 
+  let record=save?{text,type,time}:
+    history.find(item=>item.time===time&&item.type===type&&item.text===text);
+
+  if(save){
+    history.push(record);
+    history=history.slice(-100);
+    saveHistory();
+  }
+
+  if(record){
+    const del=document.createElement("button");
+    del.textContent="×";
+    del.type="button";
+    del.title="删除这条消息";
+    del.style.cssText="margin:4px 0 0 8px;padding:3px 8px;border:0;border-radius:10px;background:#fff;color:#789;cursor:pointer;font-size:16px;";
+
+    del.addEventListener("click",()=>{
+      if(!confirm("确定删除这条消息吗？"))return;
+
+      const index=history.indexOf(record);
+      if(index<0)return;
+
+      history.splice(index,1);
+      saveHistory();
+
+      chat.innerHTML="";
+      if(history.length){
+        history.forEach(item=>{
+          addMessage(item.text,item.type,false,item.time);
+        });
+      }else{
+        welcome();
+      }
+    });
+
+    wrap.appendChild(del);
+  }
+
   chat.appendChild(clock);
   chat.appendChild(wrap);
   chat.scrollTop=chat.scrollHeight;
 
-  if(save){
-    history.push({text,type,time});
-    history=history.slice(-100);
-    saveHistory();
-  }
   return {wrap,clock};
 }
+
 
 function welcome(){
   addMessage(
