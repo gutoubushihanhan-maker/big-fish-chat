@@ -272,7 +272,13 @@ async function send(){
     const response=await fetch(API_URL,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({message:text})
+      body:JSON.stringify({
+  message:text,
+  history:history.slice(0,-1).slice(-11).map(item=>({
+    role:item.type==="fish"?"assistant":"user",
+    content:item.text
+  }))
+})
     });
 
     const data=await response.json();
