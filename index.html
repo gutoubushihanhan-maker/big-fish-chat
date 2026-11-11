@@ -83,8 +83,12 @@ button {
 </footer>
 
 <script>
+
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
+
+const API_URL =
+  "https://big-fish-ai.gutoubushihanhan.workers.dev/";
 
 function addMessage(text, type) {
   const div = document.createElement("div");
@@ -94,31 +98,50 @@ function addMessage(text, type) {
   chat.scrollTop = chat.scrollHeight;
 }
 
-function send() {
-  const text = input.value.trim();
-  if (!text) return;
+let sending = false;
 
+async function send() {
+  const text = input.value.trim();
+  if (!text || sending) return;
+
+  sending = true;
   addMessage(text, "me");
   input.value = "";
 
-  setTimeout(() => {
-    let reply = "🐳 大肥鱼收到啦！等我接入AI大脑，就能认真回答你啦！";
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: text
+      })
+    });
 
-    if (text.includes("你好")) {
-      reply = "🐳 你好呀！我是大肥鱼，很高兴认识你！";
-    } else if (text.includes("名字")) {
-      reply = "🐳 我叫大肥鱼，一条爱吃白米饭的鱼！";
-    } else if (text.includes("吃")) {
-      reply = "🍚 说到吃的，大肥鱼最喜欢白米饭啦！";
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "请求失败");
     }
 
-    addMessage(reply, "fish");
-  }, 500);
+    addMessage(data.reply, "fish");
+
+  } catch (error) {
+    addMessage(
+      "🐳 云端连接失败，请稍后再试。",
+      "fish"
+    );
+    console.error(error);
+  } finally {
+    sending = false;
+  }
 }
 
 input.addEventListener("keydown", e => {
   if (e.key === "Enter") send();
 });
+
 </script>
 
 </body>
