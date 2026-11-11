@@ -116,6 +116,7 @@ footer{
   </button>
 </header>
 
+<button type="button" onclick="openMemory()">🧠 长期记忆（查看 / 保存 / 删除）</button>
 <main id="chat"></main>
 
 <footer>
@@ -126,6 +127,13 @@ footer{
 </footer>
 </div>
 
+<dialog id="memoryDialog" style="max-width:90%;border:0;border-radius:16px;padding:20px">
+<h2>长期记忆</h2><p>仅保存你选择并确认的普通偏好，不自动保存聊天。<br>凭证保存在此浏览器；共用电脑请勿使用。清空聊天不会删除记忆。</p>
+<select id="memoryChoice" aria-label="选择偏好"></select>
+<button onclick="saveMemory()">确认保存所选偏好</button>
+<p id="memoryStatus" role="status"></p><div id="memoryList"></div>
+<button onclick="clearMemory()">删除全部云端记忆</button>
+<button onclick="document.getElementById('memoryDialog').close()">关闭</button></dialog>
 <script>
 const chat=document.getElementById("chat");
 const input=document.getElementById("input");
@@ -134,6 +142,54 @@ const sendBtn=document.getElementById("sendBtn");
 const API_URL=
 "https://big-fish-ai.gutoubushihanhan.workers.dev/";
 
+const memoryOptions={rice:"喜欢白米饭",noodles:"喜欢面条",fruit:"喜欢水果",reading:"喜欢阅读",music:"喜欢音乐",games:"喜欢游戏",concise:"希望回答简短",detailed:"希望回答详细"};
+let memoryToken="";
+function memoryHeaders(){
+ try {
+  if(!memoryToken){
+   memoryToken=localStorage.getItem("fish-memory-token-v1")||"";
+   if(!/^[a-f0-9]{64}$/.test(memoryToken)){
+    memoryToken=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
+    localStorage.setItem("fish-memory-token-v1",memoryToken);
+   }
+  }
+  return {Authorization:"Bearer "+memoryToken};
+ }catch{return {};}
+}
+async function memoryRequest(action,extra={}){
+ const headers=memoryHeaders();
+ if(!headers.Authorization)throw new Error("浏览器无法保存记忆凭证，请允许本站本地存储后重试。");
+ const response=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json",...headers},body:JSON.stringify({action,...extra})});
+ const data=await response.json();
+ if(!response.ok)throw new Error(data.error||"记忆请求失败");
+ return data;
+}
+async function memoryTask(fn){
+ const status=document.getElementById("memoryStatus");
+ status.textContent="处理中…";
+ try{await fn();status.textContent="操作成功。云端变更可能需要约一分钟同步。";}
+ catch(e){status.textContent=e.message;}
+}
+async function refreshMemory(){
+ const data=await memoryRequest("list");
+ const list=document.getElementById("memoryList");list.replaceChildren();
+ if(!data.memories.length)list.textContent="暂未保存记忆。";
+ data.memories.forEach(m=>{
+  const row=document.createElement("p"), label=document.createElement("span"),button=document.createElement("button");
+  label.textContent=m.text+" ";button.textContent="删除";
+  button.onclick=()=>memoryTask(async()=>{await memoryRequest("delete",{id:m.id});row.remove();});
+  row.append(label,button);list.append(row);
+ });
+}
+function openMemory(){
+ const select=document.getElementById("memoryChoice");
+ if(!select.options.length)Object.entries(memoryOptions).forEach(([id,text])=>select.add(new Option(text,id)));
+ document.getElementById("memoryDialog").showModal();memoryTask(refreshMemory);
+}
+function saveMemory(){const id=document.getElementById("memoryChoice").value;
+ if(confirm("同意将「"+memoryOptions[id]+"」保存到云端长期记忆？"))memoryTask(async()=>{await memoryRequest("save",{id,consent:true});await refreshMemory();});
+}
+function clearMemory(){if(confirm("确定删除此浏览器的全部云端记忆？"))memoryTask(async()=>{await memoryRequest("clear");document.getElementById("memoryList").textContent="已提交全部删除。";});}
 const STORAGE_KEY="big-fish-chat-history-v1";
 let history=[];
 let sending=false;
@@ -271,7 +327,7 @@ async function send(){
   try{
     const response=await fetch(API_URL,{
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:{"Content-Type":"application/json",...memoryHeaders()},
       body:JSON.stringify({
   message:text,
   history:history.slice(0,-1).slice(-11).map(item=>({
