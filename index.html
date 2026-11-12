@@ -111,6 +111,7 @@ footer{
       <span class="dot"></span>云端聊天小屋
     </div>
   </div>
+  <button class="clear" type="button" onclick="exportChat()">导出</button>
   <button class="clear" onclick="clearChat()">
     🗑️ 清空
   </button>
@@ -302,6 +303,16 @@ if(history.length){
   );
 }else{
   welcome();
+}
+
+function exportChat(){
+ if(!history.length){alert("还没有可导出的聊天记录。");return;}
+ const lines=["大肥鱼聊天记录", "导出时间："+new Date().toLocaleString("zh-CN"), "仅包含此浏览器的聊天记录，不包含云端长期记忆。", ""];
+ history.forEach(item=>{lines.push((item.type==="me"?"我":"大肥鱼")+" · "+new Date(item.time).toLocaleString("zh-CN"),item.text,"");});
+ const blob=new Blob(["\ufeff"+lines.join("\n")],{type:"text/plain;charset=utf-8"});
+ const url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download="大肥鱼聊天记录-"+new Date().toISOString().slice(0,10)+".txt";
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
 
 function clearChat(){
