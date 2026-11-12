@@ -279,6 +279,28 @@ function addMessage(text,type,save=true,time=Date.now()){
       }
     });
 
+    if(type==="fish"){
+      const copy=document.createElement("button");
+      copy.type="button";copy.textContent="复制";copy.title="复制这条回答";
+      copy.style.cssText="margin:4px 0 0 8px;padding:3px 8px;border:0;border-radius:10px;background:#fff;color:#456;cursor:pointer;";
+      copy.addEventListener("click",async()=>{
+        try{
+          await navigator.clipboard.writeText(record.text);
+          copy.textContent="已复制";
+          setTimeout(()=>{copy.textContent="复制";},1500);
+        }catch{
+          const dialog=document.createElement("dialog");
+          const info=document.createElement("p");info.textContent="自动复制不可用，请选中下方文字后手动复制。";
+          const area=document.createElement("textarea");area.value=record.text;area.readOnly=true;
+          area.style.cssText="width:100%;height:220px";
+          const close=document.createElement("button");close.textContent="关闭";close.onclick=()=>dialog.close();
+          dialog.append(info,area,close);dialog.style.cssText="width:85%;max-width:600px;border:0;border-radius:12px;padding:20px";
+          dialog.addEventListener("close",()=>dialog.remove(),{once:true});
+          document.body.append(dialog);dialog.showModal();area.focus();area.select();
+        }
+      });
+      wrap.appendChild(copy);
+    }
     wrap.appendChild(del);
   }
 
