@@ -310,10 +310,37 @@ function clearChat(){
   welcome();
 }
 
+function requestedPreference(text){
+ const match=text.match(/^(?:请)?(?:帮我)?记住[，,:：\s]*(?:我)?(.+?)[。！!]?$/);
+ if(!match)return null;
+ const facts={"喜欢白米饭":"rice","喜欢面条":"noodles","喜欢水果":"fruit","喜欢阅读":"reading","喜欢音乐":"music","喜欢游戏":"games","希望回答简短":"concise","希望回答详细":"detailed"};
+ return facts[match[1]]||"unsupported";
+}
+
 async function send(){
   const text=input.value.trim();
   if(!text||sending)return;
 
+  const preference=requestedPreference(text);
+  if(preference){
+    input.value="";
+    addMessage(text,"me");
+    if(preference==="unsupported"){
+      addMessage("目前仅能保存：喜欢白米饭、面条、水果、阅读、音乐、游戏，以及希望回答简短或详细。请用‘记住，我喜欢面条’这样的完整句子；其他内容不会保存。","fish");
+      return;
+    }
+    if(!confirm("同意将「"+memoryOptions[preference]+"」保存到云端长期记忆？")){
+      addMessage("已取消，没有保存这条长期记忆。","fish");return;
+    }
+    const memorySession=session;
+    sending=true;sendBtn.disabled=true;
+    try{
+      await memoryRequest("save",{id:preference,consent:true});
+      if(memorySession===session)addMessage("已保存长期记忆："+memoryOptions[preference]+"。约一分钟后同步，可在顶部长期记忆入口查看或删除。","fish");
+    }catch(e){if(memorySession===session)addMessage("保存未确认成功："+e.message+"。请稍后在记忆入口查看。","fish");}
+    finally{sending=false;sendBtn.disabled=false;}
+    return;
+  }
   const currentSession=session;
   sending=true;
   sendBtn.disabled=true;
