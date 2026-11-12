@@ -149,16 +149,28 @@ const memoryOptions={rice:"喜欢白米饭",noodles:"喜欢面条",fruit:"喜欢
 let memoryToken="";
 let accessPassword="";
 try{accessPassword=sessionStorage.getItem("fish-access")||"";}catch{}
+let accessDialogTask=null;
 function changeAccess(){
- const value=prompt("请输入私人访问口令（留空可清除此标签页保存的口令）：", "");
- if(value===null)return;
- accessPassword=value;
- try{if(value)sessionStorage.setItem("fish-access",value);else sessionStorage.removeItem("fish-access");}catch{}
+ if(accessDialogTask)return accessDialogTask;
+ accessDialogTask=new Promise(resolve=>{
+ const dialog=document.createElement("dialog");
+ dialog.style.cssText="width:85%;max-width:420px;border:0;border-radius:16px;padding:22px";
+ const title=document.createElement("h2");title.textContent="私人访问口令";
+ const form=document.createElement("form");form.method="dialog";
+ const label=document.createElement("label");label.textContent="输入口令，仅在当前标签页保存。";
+ const field=document.createElement("input");field.type="password";field.autocomplete="current-password";field.maxLength=256;field.setAttribute("aria-label","私人访问口令");field.style.cssText="width:100%;box-sizing:border-box;margin:16px 0;padding:12px;font-size:16px";
+ const save=document.createElement("button");save.type="submit";save.textContent="保存";
+ const cancel=document.createElement("button");cancel.type="button";cancel.textContent="取消";cancel.onclick=()=>dialog.close();
+ const clear=document.createElement("button");clear.type="button";clear.textContent="清除已存口令";clear.onclick=()=>{accessPassword="";try{sessionStorage.removeItem("fish-access");}catch{}dialog.close();};
+ let accepted=false;
+ form.addEventListener("submit",event=>{event.preventDefault();if(!field.value){field.focus();return;}accessPassword=field.value;try{sessionStorage.setItem("fish-access",accessPassword);}catch{}accepted=true;dialog.close();});
+ dialog.addEventListener("close",()=>{field.value="";dialog.remove();resolve(accepted);},{once:true});
+ form.append(label,field,save,cancel,clear);dialog.append(title,form);document.body.append(dialog);dialog.showModal();field.focus();
+ }).finally(()=>{accessDialogTask=null;});
+ return accessDialogTask;
 }
-function accessHeaders(){
- if(!accessPassword)changeAccess();
- return {"X-Fish-Access":accessPassword};
-}
+async function ensureAccess(){return Boolean(accessPassword)||await changeAccess();}
+function accessHeaders(){return {"X-Fish-Access":accessPassword};}
 function memoryHeaders(){
  const access=accessHeaders();
  try {
@@ -173,6 +185,7 @@ function memoryHeaders(){
  }catch{return access;}
 }
 async function memoryRequest(action,extra={}){
+ if(!await ensureAccess())throw new Error("已取消口令输入，没有执行操作。");
  const headers=memoryHeaders();
  if(!headers.Authorization)throw new Error("浏览器无法保存记忆凭证，请允许本站本地存储后重试。");
  const response=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json",...headers},body:JSON.stringify({action,...extra})});
@@ -409,6 +422,8 @@ function requestedPreference(text){
 async function send(retryText=null,retryHistory=null){
   const text=retryText===null?input.value.trim():retryText;
   if(!text||sending)return;
+  if(!await ensureAccess())return;
+  if(sending)return;
 
   const preference=retryText===null?requestedPreference(text):null;
   if(preference){
