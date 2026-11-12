@@ -122,6 +122,7 @@ footer{
 <footer>
   <input id="input" maxlength="2000"
     placeholder="和大肥鱼说点什么...">
+  <button id="stopBtn" type="button" hidden onclick="stopReply()">停止</button>
   <button id="sendBtn" onclick="send()"
     aria-label="发送消息">➤</button>
 </footer>
@@ -193,6 +194,8 @@ function clearMemory(){if(confirm("确定删除此浏览器的全部云端记忆
 const STORAGE_KEY="big-fish-chat-history-v1";
 let history=[];
 let sending=false;
+let activeController=null;
+function stopReply(){activeController?.abort();}
 let session=0;
 
 try{
@@ -304,10 +307,36 @@ if(history.length){
 function clearChat(){
   if(!confirm("确定清空聊天记录吗？"))return;
   session++;
+  stopReply();
   history=[];
   saveHistory();
   chat.innerHTML="";
   welcome();
+}
+
+async function readReplyStream(response,onText){
+ const reader=response.body.getReader(),decoder=new TextDecoder();
+ let buffer="",doneMarker=false;
+ function event(block){
+  const data=block.split("\n").filter(x=>x.startsWith("data:")).map(x=>x.slice(5).trimStart()).join("\n");
+  if(!data)return;
+  if(data.trim()==="[DONE]"){doneMarker=true;return;}
+  const packet=JSON.parse(data);
+  if(packet.error)throw new Error("模型服务返回错误，请重试。");
+  const part=packet.choices?.[0]?.delta?.content;
+  if(typeof part==="string")onText(part);
+ }
+ try{
+  while(!doneMarker){
+   const {value,done}=await reader.read();
+   buffer+=done?decoder.decode():decoder.decode(value,{stream:true});
+   buffer=buffer.replace(/\r\n/g,"\n");
+   let boundary;
+   while((boundary=buffer.indexOf("\n\n"))>=0){event(buffer.slice(0,boundary));buffer=buffer.slice(boundary+2);if(doneMarker)break;}
+   if(done){if(buffer.trim())event(buffer);break;}
+  }
+  if(!doneMarker)throw new Error("回复连接中断，请重试。");
+ }finally{try{await reader.cancel();}catch{}reader.releaseLock();}
 }
 
 function requestedPreference(text){
@@ -347,15 +376,21 @@ async function send(){
   addMessage(text,"me");
   input.value="";
 
+  const controller=new AbortController();
+  activeController=controller;
+  document.getElementById("stopBtn").hidden=false;
+  let reply="";
   const waiting=addMessage(
     "大肥鱼正在思考...","fish thinking",false
   );
 
   try{
     const response=await fetch(API_URL,{
+      signal:controller.signal,
       method:"POST",
       headers:{"Content-Type":"application/json",...memoryHeaders()},
       body:JSON.stringify({
+  stream:true,
   message:text,
   history:history.slice(0,-1).slice(-11).map(item=>({
     role:item.type==="fish"?"assistant":"user",
@@ -364,25 +399,25 @@ async function send(){
 })
     });
 
-    const data=await response.json();
-    if(!response.ok){
-      throw new Error(data.error||"请求失败");
-    }
-    if(currentSession!==session)return;
-
-    waiting.wrap.remove();
-    waiting.clock.remove();
-    addMessage(data.reply,"fish");
-
+    if(!response.ok){const error=await response.json();throw new Error(error.error||"请求失败");}
+    if(response.headers.get("content-type")?.includes("text/event-stream")){
+      await readReplyStream(response,part=>{
+        if(currentSession!==session)return;
+        reply+=part;
+        waiting.wrap.querySelector(".bubble").textContent=reply;
+        chat.scrollTop=chat.scrollHeight;
+      });
+    }else{const data=await response.json();reply=data.reply||"";}
+    if(!reply.trim())throw new Error("这次未收到回复，请重试。");
   }catch(error){
     if(currentSession!==session)return;
-    waiting.wrap.remove();
-    waiting.clock.remove();
-    addMessage(
-      "🐳 云端连接失败，请稍后再试。","fish"
-    );
-    console.error(error);
+    if(error.name==="AbortError")reply+=(reply?"\n":"")+"[已停止回答]";
+    else reply+=(reply?"\n[回复中断] ":"")+ (error.message||"云端连接失败，请稍后再试。");
   }finally{
+    waiting.wrap.remove();waiting.clock.remove();
+    if(currentSession===session)addMessage(reply,"fish");
+    if(activeController===controller)activeController=null;
+    document.getElementById("stopBtn").hidden=true;
     sending=false;
     sendBtn.disabled=false;
   }
