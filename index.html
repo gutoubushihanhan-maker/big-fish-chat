@@ -119,7 +119,7 @@ header{flex-wrap:wrap;gap:8px}header .clear{margin-left:0}.message{flex-wrap:wra
 </header>
 
 <button type="button" onclick="openMemory()">🧠 长期记忆（查看 / 保存 / 删除）</button>
-<div class="tools"><button type="button" id="themeBtn" onclick="toggleTheme()">切换深色模式</button><button type="button" onclick="regenerate()">重新生成上一答</button><button type="button" onclick="goBottom()">↓ 回到底部</button></div>
+<div class="tools"><button type="button" onclick="changeAccess()">访问口令</button><button type="button" id="themeBtn" onclick="toggleTheme()">切换深色模式</button><button type="button" onclick="regenerate()">重新生成上一答</button><button type="button" onclick="goBottom()">↓ 回到底部</button></div>
 <main id="chat"></main>
 
 <footer>
@@ -147,7 +147,20 @@ const API_URL=
 
 const memoryOptions={rice:"喜欢白米饭",noodles:"喜欢面条",fruit:"喜欢水果",reading:"喜欢阅读",music:"喜欢音乐",games:"喜欢游戏",concise:"希望回答简短",detailed:"希望回答详细"};
 let memoryToken="";
+let accessPassword="";
+try{accessPassword=sessionStorage.getItem("fish-access")||"";}catch{}
+function changeAccess(){
+ const value=prompt("请输入私人访问口令（留空可清除此标签页保存的口令）：", "");
+ if(value===null)return;
+ accessPassword=value;
+ try{if(value)sessionStorage.setItem("fish-access",value);else sessionStorage.removeItem("fish-access");}catch{}
+}
+function accessHeaders(){
+ if(!accessPassword)changeAccess();
+ return {"X-Fish-Access":accessPassword};
+}
 function memoryHeaders(){
+ const access=accessHeaders();
  try {
   if(!memoryToken){
    memoryToken=localStorage.getItem("fish-memory-token-v1")||"";
@@ -156,8 +169,8 @@ function memoryHeaders(){
     localStorage.setItem("fish-memory-token-v1",memoryToken);
    }
   }
-  return {Authorization:"Bearer "+memoryToken};
- }catch{return {};}
+  return {...access,Authorization:"Bearer "+memoryToken};
+ }catch{return access;}
 }
 async function memoryRequest(action,extra={}){
  const headers=memoryHeaders();
