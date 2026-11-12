@@ -99,6 +99,7 @@ footer{
   font-size:21px;flex-shrink:0;
 }
 #sendBtn:disabled{opacity:.5}
+header{flex-wrap:wrap;gap:8px}header .clear{margin-left:0}.message{flex-wrap:wrap}.bubble{min-width:0}#input{resize:vertical;max-height:180px;font:inherit} .tools{display:flex;gap:8px;flex-wrap:wrap;padding:6px 12px}.tools button{padding:7px 10px;border:1px solid #b8d6e8;border-radius:12px;cursor:pointer}body.dark{color-scheme:dark;background:#111d2c;color:#e3edf7}body.dark .app{background:#142438}body.dark header,body.dark footer,body.dark dialog{background:#1b3046;color:#e3edf7}body.dark .fish .bubble{background:#263e55}body.dark .me .bubble{background:#275d7b}body.dark #input{background:#142438;color:#e3edf7}body.dark button{background:#263e55!important;color:#e3edf7!important}body.dark .time{color:#a3bbce}body.dark .mini{background:#263e55}
 </style>
 </head>
 <body>
@@ -118,11 +119,11 @@ footer{
 </header>
 
 <button type="button" onclick="openMemory()">🧠 长期记忆（查看 / 保存 / 删除）</button>
+<div class="tools"><button type="button" id="themeBtn" onclick="toggleTheme()">切换深色模式</button><button type="button" onclick="regenerate()">重新生成上一答</button><button type="button" onclick="goBottom()">↓ 回到底部</button></div>
 <main id="chat"></main>
 
 <footer>
-  <input id="input" maxlength="2000"
-    placeholder="和大肥鱼说点什么...">
+  <textarea id="input" rows="2" maxlength="2000" aria-label="聊天消息" placeholder="Enter 发送，Shift + Enter 换行"></textarea>
   <button id="stopBtn" type="button" hidden onclick="stopReply()">停止</button>
   <button id="sendBtn" onclick="send()"
     aria-label="发送消息">➤</button>
@@ -372,6 +373,19 @@ async function readReplyStream(response,onText){
  }finally{try{await reader.cancel();}catch{}reader.releaseLock();}
 }
 
+function goBottom(){chat.scrollTop=chat.scrollHeight;}
+function applyTheme(dark){document.body.classList.toggle("dark",dark);document.getElementById("themeBtn").textContent=dark?"切换浅色模式":"切换深色模式";document.querySelector('meta[name="theme-color"]').content=dark?"#142438":"#e8f5ff";}
+function toggleTheme(){const dark=!document.body.classList.contains("dark");applyTheme(dark);try{localStorage.setItem("fish-theme",dark?"dark":"light");}catch{}}
+try{applyTheme(localStorage.getItem("fish-theme")==="dark");}catch{}
+function regenerate(){
+ if(sending)return;
+ let index=history.length-1;
+ while(index>=0&&history[index].type!=="me")index--;
+ if(index<0){alert("请先发送一条消息。");return;}
+ if(requestedPreference(history[index].text)){alert("记忆操作请使用顶部记忆入口查看或修改，不会重新执行。");return;}
+ send(history[index].text,history.slice(0,index));
+}
+
 function requestedPreference(text){
  const match=text.match(/^(?:请)?(?:帮我)?记住[，,:：\s]*(?:我)?(.+?)[。！!]?$/);
  if(!match)return null;
@@ -379,11 +393,11 @@ function requestedPreference(text){
  return facts[match[1]]||"unsupported";
 }
 
-async function send(){
-  const text=input.value.trim();
+async function send(retryText=null,retryHistory=null){
+  const text=retryText===null?input.value.trim():retryText;
   if(!text||sending)return;
 
-  const preference=requestedPreference(text);
+  const preference=retryText===null?requestedPreference(text):null;
   if(preference){
     input.value="";
     addMessage(text,"me");
@@ -406,8 +420,7 @@ async function send(){
   const currentSession=session;
   sending=true;
   sendBtn.disabled=true;
-  addMessage(text,"me");
-  input.value="";
+  if(retryText===null){addMessage(text,"me");input.value="";}
 
   const controller=new AbortController();
   activeController=controller;
@@ -425,7 +438,7 @@ async function send(){
       body:JSON.stringify({
   stream:true,
   message:text,
-  history:history.slice(0,-1).slice(-11).map(item=>({
+  history:(retryHistory===null?history.slice(0,-1):retryHistory).slice(-11).map(item=>({
     role:item.type==="fish"?"assistant":"user",
     content:item.text
   }))
@@ -438,7 +451,7 @@ async function send(){
         if(currentSession!==session)return;
         reply+=part;
         waiting.wrap.querySelector(".bubble").textContent=reply;
-        chat.scrollTop=chat.scrollHeight;
+        if(chat.scrollHeight-chat.scrollTop-chat.clientHeight<180)goBottom();
       });
     }else{const data=await response.json();reply=data.reply||"";}
     if(!reply.trim())throw new Error("这次未收到回复，请重试。");
@@ -457,7 +470,7 @@ async function send(){
 }
 
 input.addEventListener("keydown",e=>{
-  if(e.key==="Enter"&&!e.isComposing)send();
+  if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();send();}
 });
 </script>
 </body>
